@@ -11,6 +11,7 @@ import com.alcognerd.habittracker.repository.CategoryRepository;
 import com.alcognerd.habittracker.repository.HabitHistoryRepository;
 import com.alcognerd.habittracker.repository.HabitRepository;
 import com.alcognerd.habittracker.repository.HabitStreakRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -116,17 +117,16 @@ public class HabitService {
         return habitOuts;
     }
 
+    @Transactional
     public HabitOut updateTodayHabitStatus(User user,HabitStatus status,Long habitId){
         Habit habit = habitRepository.findByHabitIdAndEnabledTrue(habitId).orElseThrow(() -> new HabitNotFoundException(habitId));
 
         // streak must exist
         HabitStreak habitStreak = habitStreakRepository.findByHabitId(habit.getHabitId()).orElseThrow(() -> new HabitStreakNotFoundException(habit.getHabitId()));
-
         // today's history must exist
-
-
         HabitHistory habitHistory = habitHistoryRepository.findTodayHistoryByHabitId(habit.getHabitId()).orElseThrow(() -> new HabitHistoryNotFoundException(habit.getHabitId()));
-        habitHistoryRepository.save(habitHistory);
+        habitHistory.setStatus(status);
+
         if(status.equals(HabitStatus.COMPLETED)){
             if (habitStreak.getLastCompletedDate() != null &&
                     habitStreak.getLastCompletedDate().equals(LocalDate.now().minusDays(1))) {
@@ -142,6 +142,7 @@ public class HabitService {
         }else {
             habitStreak.setCurrentStreak(0);
         }
+        habitHistoryRepository.save(habitHistory);
         habitStreakRepository.save(habitStreak);
         return HabitOut.builder()
                 .id(habit.getHabitId())
@@ -155,6 +156,7 @@ public class HabitService {
                 .lastCompletedAt(habitStreak.getLastCompletedDate())
                 .build();
     }
+
 
     public List<HabitOut> getTodayHabits(User user){
         LocalDate today = LocalDate.now();
