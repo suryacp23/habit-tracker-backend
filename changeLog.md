@@ -1,11 +1,124 @@
-# Habit Module
+# 📘 Project Changelog
+
+## API Quick Table
+
+### 🟪 Habit History APIs (Version 0.3.0)
+
+| Endpoint                                     | Method  | Description                         | Params / Body  | Sample Response                      |
+| -------------------------------------------- | ------- | ----------------------------------- | -------------- | ------------------------------------ |
+| `/api/habits/history/completed?year=current` | **GET** | Last 365 days completed habit count | `year=current` | `{ "2024-12-1": 1, "2024-12-2": 0 }` |
+| `/api/habits/history/completed?year=YYYY`    | **GET** | Completed count for full year       | `year=2025`    | `{ "2025-01-01": 2 }`                |
+
+---
+
+### 🟦 Habit APIs (Version 0.2.0)
+
+| Endpoint            | Method   | Description                 | Params / Body                                        | Sample Response                                                  |
+| ------------------- | -------- | --------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------- |
+| `/api/habits`       | **POST** | Create a habit              | `{ name, description, category, frequency, days[] }` | `{ "status": "CREATED", "message": "Habit added successfully" }` |
+| `/api/habits`       | **GET**  | Get all habits of the user  | None                                                 | `{ "status": "OK", "data": [...] }`                              |
+| `/api/habits`       | **PUT**  | Update today's habit status | `{ habitId, status }`                                | `{ "status": "OK", "message": "Habit updated successfully" }`    |
+| `/api/habits/today` | **GET**  | Get today’s active habits   | None                                                 | `{ "status": "OK", "data": [...] }`                              |
+
+---
+
+### 🟩 Authentication APIs (Version 0.1.0)
+
+| Endpoint                       | Method   | Description                       | Params          | Sample Response                              |
+| ------------------------------ | -------- | --------------------------------- | --------------- | -------------------------------------------- |
+| `/oauth2/authorization/google` | **GET**  | Start Google login                | None            | Redirect                                     |
+| `/logout`                      | **POST** | Logout user & delete token cookie | None            | `{ "status": "success" }`                    |
+| `/api/auth/me`                 | **GET**  | Fetch current logged-in user      | HttpOnly cookie | `{ "id": 1, "email": "...", "name": "..." }` |
+
+---
+
+---
+
+# 📘 Habit History Module
+
+### Version 0.3.0
+
+### Date: 01-12-2025
+
+## Overview
+
+The HabitHistory module adds analytics APIs for heatmap-style habit progress tracking.
+APIs return a `Map<String, Long>` where keys are dates and values represent the count of completed habits.
+
+---
+
+## Added
+
+### 1. Get Completed Habit Count — Last 365 Days
+
+**`GET /api/habits/history/completed?year=current`**
+
+* Fetches completion count from *today → 365 days back*.
+* Returns daily completion counts in a date→count map.
+
+**Example Response**
+
+```json
+{
+  "status": "success",
+  "message": "Completed history fetched successfully",
+  "data": {
+    "2024-12-1": 1,
+    "2024-12-2": 0,
+    "2024-12-3": 1
+  }
+}
+```
+
+---
+
+### 2. Get Completed Habit Count — Specific Year
+
+**`GET /api/habits/history/completed?year=2025`**
+
+* Fetches daily `COMPLETED` counts for full year.
+* Useful for yearly analytics dashboards.
+
+**Example Response**
+
+```json
+{
+  "status": "success",
+  "message": "Completed history fetched successfully",
+  "data": {
+    "2025-01-01": 2,
+    "2025-01-02": 1
+  }
+}
+```
+
+---
+
+### 3. Error Handling
+
+**If no history exists:**
+
+```json
+{
+  "status": "error",
+  "message": "No habit history found for the given year",
+  "data": null
+}
+```
+
+---
+
+---
+
+# 📗 Habit Module
 
 ### Version 0.2.0
+
 ### Date: 30-11-2025
 
 ## Overview
 
-Initial habit management module providing CRUD-style APIs for creating, fetching, and updating user habits, including support for day-of-week based scheduling and today’s habits retrieval.
+Provides CRUD-style habit management with support for scheduling, streaks, and retrieving today's habits.
 
 ---
 
@@ -15,18 +128,23 @@ Initial habit management module providing CRUD-style APIs for creating, fetching
 
 **`POST /api/habits`**
 
-- Creates a new habit for the authenticated user.
-- Accepts a `HabitCreate` DTO with:
-    - `name`, `description`, `category`, `frequency` (`DAILY` / `WEEKLY`)
-    - `days`: list of active days of week (`MONDAY`..`SUNDAY`)
-- Resolves category from DB and associates it with the habit.
-- Initializes:
-    - `Habit` entity
-    - `HabitStreak` entity with `currentStreak = 0`, `longestStreak = 0`
-    - Optional `HabitHistory` for today if the habit is active today
-- Returns `HabitOut` wrapped in `ApiResponse` with:
-    - `status = CREATED`
-    - `message`: `"Habit added successfully"`
+* Accepts a `HabitCreate` DTO:
+
+    * `name`, `description`, `category`, `frequency`, `days[]`
+* Creates:
+
+    * `Habit`
+    * `HabitStreak`
+    * Optional `HabitHistory` (if active today)
+
+**Response**
+
+```json
+{
+  "status": "CREATED",
+  "message": "Habit added successfully"
+}
+```
 
 ---
 
@@ -34,11 +152,8 @@ Initial habit management module providing CRUD-style APIs for creating, fetching
 
 **`GET /api/habits`**
 
-- Fetches all habits for the authenticated user.
-- Uses `HabitService.getAllHabits(user)` to retrieve user-specific habits.
-- Returns a list of `HabitOut` wrapped in `ApiResponse` with:
-    - `status = OK`
-    - `message`: `"Fetched user habits successfully"`
+* Fetches all authenticated user's habits.
+* Returns list of `HabitOut`.
 
 ---
 
@@ -46,16 +161,12 @@ Initial habit management module providing CRUD-style APIs for creating, fetching
 
 **`PUT /api/habits`**
 
-- Updates the current day’s status for a specific habit.
-- Accepts:
-    - `Habit` reference (to identify habit)
-    - `status` (string mapped to `HabitStatus`, e.g. `COMPLETED`, `SKIPPED`, `PENDING`)
-- Uses `HabitService.updateTodayHabitStatus(user, status, habit)` to:
-    - update / create today’s `HabitHistory`
-    - adjust streak information (`HabitStreak`) accordingly
-- Returns updated `HabitOut` wrapped in `ApiResponse` with:
-    - `status = OK`
-    - `message`: `"Habit updated successfully"`
+* Updates today's habit status:
+
+    * `COMPLETED`
+    * `SKIPPED`
+    * `PENDING`
+* Adjusts streaks and history accordingly.
 
 ---
 
@@ -63,30 +174,24 @@ Initial habit management module providing CRUD-style APIs for creating, fetching
 
 **`GET /api/habits/today`**
 
-- Returns habits that are **active for the current day** for the authenticated user.
-- Uses `HabitService.getTodayHabits(user)` which:
-    - filters habits by `activeDays` (using `DayOfWeek`)
-    - returns only habits whose schedule includes today
-- Response:
-    - List of `HabitOut` for today’s habits
-    - Wrapped in `ApiResponse` with:
-        - `status = OK`
-        - `message`: `"Fetched today habits successfully"`
+* Filters habits by current weekday.
+* Returns active habits for today.
 
 ---
 
 ### 5. Error Handling
 
-All habit APIs:
+* User extracted from `Authentication.getPrincipal()`.
+* All errors returned via `ApiResponse` with:
 
-- Extract authenticated `User` from `Authentication.getPrincipal()`.
-- On failures (e.g., user not found, invalid input, service errors):
-    - Return `ApiResponse` with:
-        - `status = BAD_REQUEST`
-        - `message` set to the exception message.
-- For `GET /api/habits` and `GET /api/habits/today`, response is returned with **400 Bad Request** via `ResponseEntity.badRequest()`.
+    * `status = BAD_REQUEST`
+    * `message = error`
 
-# Authentication
+---
+
+---
+
+# 📙 Authentication Module
 
 ### Version 0.1.0
 
@@ -94,44 +199,43 @@ All habit APIs:
 
 ## Overview
 
-Initial authentication module setup containing Google OAuth2 integration, session handling, and user identity retrieval.
+Initial security layer integrating Google OAuth2 and JWT authentication stored in HttpOnly cookies.
 
 ---
 
 ## Added
 
-### 1. **Google OAuth2 Authentication API**
+### 1. Google OAuth2 Authentication
 
-* **`GET /oauth2/authorization/google`**
+**`GET /oauth2/authorization/google`**
 
-    * Initiates Google Login / Registration flow.
-    * Redirects the user to Google's OAuth2 consent screen.
-    * On successful login, the backend creates or uses existing the user and issues an authentication token.
+* Starts Google login flow.
+* Creates new user or returns existing one.
+* Issues authentication token (JWT).
 
-### 2. **Logout API**
+---
 
-* **`POST /logout`**
+### 2. Logout API
 
-    * Logs out the currently authenticated user.
-    * Deletes authentication cookies (e.g., `token`).
-    * Returns a success response.
+**`POST /logout`**
 
-### 3. **Current User API**
+* Logs out the authenticated user.
+* Deletes `token` HttpOnly cookie.
 
-* **`GET /api/auth/me`**
+---
 
-    * Returns the currently authenticated user's details.
-    * Reads authentication token (HttpOnly cookie) to identify the user.
+### 3. Current User API
+
+**`GET /api/auth/me`**
+
+* Returns authenticated user details.
+* Identifies user via JWT stored in HttpOnly cookie.
 
 ---
 
 ## Notes
 
-* This is the first stable version of the authentication module.
-* Supports jwt token-based authentication using HttpOnly cookies.
-* Google OAuth2 is now fully enabled for login and automatic registration.
-
-
-
-
-    
+* First stable version of authentication module.
+* Google login fully enabled.
+* JWT-based authentication (no session storage).
+* Secure HttpOnly cookie used for token.
