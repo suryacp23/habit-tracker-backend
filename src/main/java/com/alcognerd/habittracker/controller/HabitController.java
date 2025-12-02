@@ -5,6 +5,7 @@ import com.alcognerd.habittracker.dto.HabitCreate;
 import com.alcognerd.habittracker.dto.HabitOut;
 import com.alcognerd.habittracker.dto.HabitStatusUpdateRequest;
 import com.alcognerd.habittracker.enums.HabitStatus;
+import com.alcognerd.habittracker.exception.NotFoundException;
 import com.alcognerd.habittracker.model.Habit;
 import com.alcognerd.habittracker.model.User;
 import com.alcognerd.habittracker.service.HabitService;
@@ -29,7 +30,7 @@ public class HabitController {
 
             User user  =(User) authentication.getPrincipal();
             if(user == null){
-                throw new RuntimeException("User not found");
+                throw new NotFoundException("User not found");
             }
             HabitOut habitOut = habitService.createHabit(habitRequest,user);
             ApiResponse<HabitOut> apiResponse = new ApiResponse<>(HttpStatus.CREATED.name(), "Habit added successfully",habitOut);

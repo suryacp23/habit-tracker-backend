@@ -49,6 +49,10 @@ public interface HabitHistoryRepository extends JpaRepository<HabitHistory,Long>
     )
     List<Object[]> getCompletedByYear(int year);
 
+    // Find today's history for a habit
+    Optional<HabitHistory> findByHabit_HabitIdAndCreatedAt(Long habitId, LocalDate date);
 
-
+    // Find the latest history date for a habit
+    @Query("SELECT MAX(h.createdAt) FROM HabitHistory h WHERE h.habit.habitId = :habitId")
+    LocalDate findLastHistoryDateForHabit(@Param("habitId") Long habitId);
 }

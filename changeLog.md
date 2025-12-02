@@ -11,14 +11,15 @@
 
 ---
 
-### 🟦 Habit APIs (Version 0.2.0)
+### 🟦 Habit APIs (Version 0.2.1)
 
-| Endpoint            | Method   | Description                 | Params / Body                                        | Sample Response                                                  |
-| ------------------- | -------- | --------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------- |
-| `/api/habits`       | **POST** | Create a habit              | `{ name, description, category, frequency, days[] }` | `{ "status": "CREATED", "message": "Habit added successfully" }` |
-| `/api/habits`       | **GET**  | Get all habits of the user  | None                                                 | `{ "status": "OK", "data": [...] }`                              |
-| `/api/habits`       | **PUT**  | Update today's habit status | `{ habitId, status }`                                | `{ "status": "OK", "message": "Habit updated successfully" }`    |
-| `/api/habits/today` | **GET**  | Get today’s active habits   | None                                                 | `{ "status": "OK", "data": [...] }`                              |
+| Endpoint                  | Method    | Description                 | Params / Body                                        | Sample Response                                                  |
+| ------------------------- | --------- | --------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------- |
+| `/api/habits`             | **POST**  | Create a habit              | `{ name, description, category, frequency, days[] }` | `{ "status": "CREATED", "message": "Habit added successfully" }` |
+| `/api/habits`             | **GET**   | Get all habits of the user  | None                                                 | `{ "status": "OK", "data": [...] }`                              |
+| `/api/habits/{habitId}`   | **PUT**   | Update today's habit status | `{ status }`                                         | `{ "status": "OK", "message": "Habit updated successfully" }`    |
+| `/api/habits/today`       | **GET**   | Get today’s active habits   | None                                                 | `{ "status": "OK", "data": [...] }`                              |
+| `/api/habits/{habitId}`   | **DELETE**| Disable/Delete a habit      | None                                                 | `{ "status": "OK", "message": "Habit deleted successfully" }`    |
 
 ---
 
@@ -155,6 +156,25 @@ Provides CRUD-style habit management with support for scheduling, streaks, and r
 * Fetches all authenticated user's habits.
 * Returns list of `HabitOut`.
 
+```json
+{
+  "status": "OK",
+  "message": "Fetched user habits successfully",
+  "data": [
+    {
+      "id": 1,
+      "name": "Morning Walk",
+      "description": "30 min walk",
+      "frequency": "DAILY",
+      "createdAt": "2025-11-20",
+      "habitStatus": "PENDING",
+      "lastCompletedAt": "2025-11-29",
+      "currentStreak": 4,
+      "category": "HEALTH"
+    }
+  ]
+}
+```
 ---
 
 ### 3. Update Habit Status API
@@ -168,6 +188,24 @@ Provides CRUD-style habit management with support for scheduling, streaks, and r
     * `PENDING`
 * Adjusts streaks and history accordingly.
 
+```json
+{
+  "status": "OK",
+  "message": "Habit updated successfully",
+  "data": {
+    "id": 1,
+    "name": "Morning Walk",
+    "description": "30 min walk",
+    "frequency": "DAILY",
+    "createdAt": "2025-11-20",
+    "habitStatus": "COMPLETED",
+    "lastCompletedAt": "2025-12-02",
+    "currentStreak": 5,
+    "category": "HEALTH"
+  }
+}
+
+```
 ---
 
 ### 4. Get Today’s Habits API
@@ -176,18 +214,56 @@ Provides CRUD-style habit management with support for scheduling, streaks, and r
 
 * Filters habits by current weekday.
 * Returns active habits for today.
+```json
+{
+  "status": "OK",
+  "message": "Fetched today habits successfully",
+  "data": [
+    {
+      "id": 2,
+      "name": "Drink Water",
+      "description": "Track hydration",
+      "frequency": "DAILY",
+      "createdAt": "2025-10-11",
+      "habitStatus": "PENDING",
+      "lastCompletedAt": "2025-12-01",
+      "currentStreak": 3,
+      "category": "WELLNESS"
+    }
+  ]
+}
 
+```
 ---
 
-### 5. Error Handling
+### 5. Delete Habit API 
 
-* User extracted from `Authentication.getPrincipal()`.
-* All errors returned via `ApiResponse` with:
+**`DELETE /api/habits/{habitId}`**
 
-    * `status = BAD_REQUEST`
-    * `message = error`
+* Soft-deletes or disables a habit.
+* Removes it from active/today filtering.
+* Retains history for analytics.
 
----
+**Response**
+```json
+{
+  "status": "OK",
+  "message": "Habit deleted successfully"
+}
+```
+
+### 6. Error Handling 
+
+All errors are handled globally using a `@RestControllerAdvice`-based **Global Exception Handler**.
+
+Every error response follows the `ApiResponse` structure:
+
+```json
+{
+  "status": "<HTTP_STATUS>",
+  "message": "<error description>"
+}
+```
 
 ---
 

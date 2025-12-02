@@ -6,6 +6,7 @@ import com.alcognerd.habittracker.enums.HabitStatus;
 import com.alcognerd.habittracker.exception.HabitHistoryNotFoundException;
 import com.alcognerd.habittracker.exception.HabitNotFoundException;
 import com.alcognerd.habittracker.exception.HabitStreakNotFoundException;
+import com.alcognerd.habittracker.exception.NotFoundException;
 import com.alcognerd.habittracker.model.*;
 import com.alcognerd.habittracker.repository.CategoryRepository;
 import com.alcognerd.habittracker.repository.HabitHistoryRepository;
@@ -38,11 +39,11 @@ public class HabitService {
 
         // Find category
         Category category = categoryRepository.findByName(habitRequest.getCategory())
-                .orElseThrow(() -> new RuntimeException("Category not found"));
+                .orElseThrow(() -> new NotFoundException("Category not found"));
 
         // Map requested days -> Set<DayOfWeek>
         Set<DayOfWeek> activeDays = habitRequest.getDays().stream()
-                .map(String::toUpperCase)             // just in case
+                .map(String::toUpperCase)
                 .map(DayOfWeek::valueOf)              // "SUNDAY" -> DayOfWeek.SUNDAY
                 .collect(Collectors.toSet());
 
@@ -63,7 +64,7 @@ public class HabitService {
                 .enabled(true)
                 .build();
 
-        // Save habit first
+        // Save habit
         Habit savedHabit = habitRepository.save(habit);
 
         // Create HabitStreak for this habit
@@ -86,7 +87,7 @@ public class HabitService {
         return HabitOut.builder()
                 .id(savedHabit.getHabitId())
                 .name(savedHabit.getName())
-                .description(savedHabit.getDescription())       // fixed
+                .description(savedHabit.getDescription())
                 .frequency(savedHabit.getFrequency())
                 .habitStatus(HabitStatus.PENDING)
                 .createdAt(savedHabit.getCreatedAt().toLocalDate())
@@ -96,10 +97,10 @@ public class HabitService {
     }
 
     public List<HabitOut> getAllHabits(User user){
-        List<Habit> habits = habitRepository.findByUserId(user.getId());
+        List<Habit> habits = habitRepository.findByUserIdAndEnabledTrue(user.getId()); // get all active habits of the user
         List<HabitOut> habitOuts = new ArrayList<>();
         for(Habit habit :habits){
-            HabitStreak habitStreak = habitStreakRepository.findByHabitId(habit.getHabitId()).orElseThrow(()->new RuntimeException("Streak not found"));
+            HabitStreak habitStreak = habitStreakRepository.findByHabitId(habit.getHabitId()).orElseThrow(()->new NotFoundException("Streak not found"));
 
             HabitOut habitOut = HabitOut.builder()
                     .id(habit.getHabitId())
@@ -118,32 +119,48 @@ public class HabitService {
     }
 
     @Transactional
-    public HabitOut updateTodayHabitStatus(User user,HabitStatus status,Long habitId){
-        Habit habit = habitRepository.findByHabitIdAndEnabledTrue(habitId).orElseThrow(() -> new HabitNotFoundException(habitId));
+    public HabitOut updateTodayHabitStatus(User user, HabitStatus status, Long habitId) {
 
-        // streak must exist
-        HabitStreak habitStreak = habitStreakRepository.findByHabitId(habit.getHabitId()).orElseThrow(() -> new HabitStreakNotFoundException(habit.getHabitId()));
-        // today's history must exist
-        HabitHistory habitHistory = habitHistoryRepository.findTodayHistoryByHabitId(habit.getHabitId()).orElseThrow(() -> new HabitHistoryNotFoundException(habit.getHabitId()));
+        Habit habit = habitRepository
+                .findByHabitIdAndEnabledTrue(habitId)
+                .orElseThrow(() -> new HabitNotFoundException(habitId));
+
+        HabitStreak habitStreak = habitStreakRepository
+                .findByHabitId(habit.getHabitId())
+                .orElseThrow(() -> new HabitStreakNotFoundException(habit.getHabitId()));
+
+        HabitHistory habitHistory = habitHistoryRepository
+                .findTodayHistoryByHabitId(habit.getHabitId())
+                .orElseThrow(() -> new HabitHistoryNotFoundException(habit.getHabitId()));
+
         habitHistory.setStatus(status);
 
-        if(status.equals(HabitStatus.COMPLETED)){
+        LocalDate today = LocalDate.now();
+        LocalDate previousActiveDate = getPreviousActiveDate(habit, today);
+
+        if (status.equals(HabitStatus.COMPLETED)) {
+
             if (habitStreak.getLastCompletedDate() != null &&
-                    habitStreak.getLastCompletedDate().equals(LocalDate.now().minusDays(1))) {
+                    habitStreak.getLastCompletedDate().equals(previousActiveDate)) {
+
                 habitStreak.setCurrentStreak(habitStreak.getCurrentStreak() + 1);
                 habitStreak.setLongestStreak(
                         Math.max(habitStreak.getCurrentStreak(), habitStreak.getLongestStreak())
                 );
-            } else {
-                habitStreak.setCurrentStreak(1); // first completion in a new streak
-            }
-            habitStreak.setLastCompletedDate(LocalDate.now());
 
-        }else {
+            } else {
+                habitStreak.setCurrentStreak(1);
+            }
+
+            habitStreak.setLastCompletedDate(today);
+
+        } else {
             habitStreak.setCurrentStreak(0);
         }
+
         habitHistoryRepository.save(habitHistory);
         habitStreakRepository.save(habitStreak);
+
         return HabitOut.builder()
                 .id(habit.getHabitId())
                 .name(habit.getName())
@@ -157,38 +174,145 @@ public class HabitService {
                 .build();
     }
 
-
-    public List<HabitOut> getTodayHabits(User user){
-        LocalDate today = LocalDate.now();
-        List<Habit> allHabits = habitRepository.findByUserIdAndEnabledTrue(user.getId());
-
-        List<Habit> todayHabits= allHabits.stream()
-                .filter(h -> h.isActiveOn(today))
-                .toList();
-
-        List<HabitOut> habitOuts = todayHabits.stream()
-                .map(habit -> {
-                    HabitStreak habitStreak = habitStreakRepository.findByHabitId(habit.getHabitId()).orElseThrow(()->new RuntimeException("Streak not found for habit: " + habit.getHabitId()));
-                    HabitHistory habitHistory = habitHistoryRepository.findTodayHistoryByHabitId(habit.getHabitId()).orElseThrow(()->new RuntimeException("Habit history not found for this habit id: "+habit.getHabitId()));
-                    return HabitOut.builder()
-                            .name(habit.getName())
-                            .description(habit.getDescription())
-                            .createdAt(habit.getCreatedAt().toLocalDate())
-                            .lastCompletedAt(habitStreak.getLastCompletedDate())
-                            .currentStreak(habitStreak.getCurrentStreak())
-                            .id(habit.getHabitId())
-                            .category(habit.getCategory().getName())
-                            .frequency(habit.getFrequency())
-                            .habitStatus(habitHistory.getStatus())
-                            .build();
-                }).toList();
-        return habitOuts;
-    }
-
     public void disableHabit(Long habitId,Long userId){
             Habit habit = habitRepository.findByHabitIdAndUserId(habitId,userId).orElseThrow(()->new HabitNotFoundException(habitId));
         habit.setEnabled(false);
         habitRepository.save(habit);
+    }
+
+
+    @Transactional
+    public List<HabitOut> getTodayHabits(User user) {
+
+        ensureHabitHistoryUpToToday(user);
+
+        LocalDate today = LocalDate.now();
+
+        List<Habit> allHabits = habitRepository.findByUserIdAndEnabledTrue(user.getId());
+
+        List<Habit> todayHabits = allHabits.stream()
+                .filter(h -> h.isActiveOn(today))
+                .toList();
+
+        return todayHabits.stream().map(habit -> {
+
+            HabitStreak streak = habitStreakRepository.findByHabitId(habit.getHabitId())
+                    .orElseThrow(() -> new NotFoundException("Streak missing for habit " + habit.getHabitId()));
+
+            HabitHistory todayHistory = habitHistoryRepository
+                    .findByHabit_HabitIdAndCreatedAt(habit.getHabitId(), today)
+                    .orElseThrow(() -> new NotFoundException("History missing for today habit " + habit.getHabitId()));
+
+            return HabitOut.builder()
+                    .id(habit.getHabitId())
+                    .name(habit.getName())
+                    .description(habit.getDescription())
+                    .frequency(habit.getFrequency())
+                    .category(habit.getCategory().getName())
+                    .currentStreak(streak.getCurrentStreak())
+                    .lastCompletedAt(streak.getLastCompletedDate())
+                    .createdAt(habit.getCreatedAt().toLocalDate())
+                    .habitStatus(todayHistory.getStatus())
+                    .build();
+        }).toList();
+    }
+
+    // Helper methods:
+    private LocalDate getPreviousActiveDate(Habit habit, LocalDate today) {
+        Set<DayOfWeek> activeDays = habit.getActiveDays();
+
+        LocalDate date = today.minusDays(1);
+        while (true) {
+            if (activeDays.contains(date.getDayOfWeek())) {
+                return date;
+            }
+            date = date.minusDays(1);
+        }
+    }
+
+    public void ensureHabitHistoryUpToToday(User user) {
+
+        LocalDate today = LocalDate.now();
+        List<Habit> habits = habitRepository.findByUserIdAndEnabledTrue(user.getId());
+
+        for (Habit habit : habits) {
+            createMissingHistoryForHabit(habit, today);
+        }
+
+        createTodayHabitHistory(habits, today);  // create today habits and mark as pending
+    }
+
+    private void createMissingHistoryForHabit(Habit habit, LocalDate today) {
+
+        LocalDate habitCreatedDate = habit.getCreatedAt().toLocalDate();
+
+        // last saved history date
+        LocalDate lastHistoryDate = habitHistoryRepository.findLastHistoryDateForHabit(habit.getHabitId());
+
+        // if no history -> start from habit creation date - 1
+        if (lastHistoryDate == null) {
+            lastHistoryDate = habitCreatedDate.minusDays(1);
+        }
+
+        // fill from lastHistoryDate+1 to yesterday
+        LocalDate fromDate = lastHistoryDate.plusDays(1);
+        LocalDate toDate = today.minusDays(1);
+
+        if (fromDate.isAfter(toDate)) return; // no gap to fill
+
+        List<HabitHistory> toSave = new ArrayList<>();
+
+        LocalDate cursor = fromDate;
+
+        while (!cursor.isAfter(toDate)) {
+            // check if habit is active on this date
+            if (habit.isActiveOn(cursor)) {
+
+                // check if this date already exists - avoid duplicates
+                boolean exists = habitHistoryRepository
+                        .findByHabit_HabitIdAndCreatedAt(habit.getHabitId(), cursor)
+                        .isPresent();
+
+                if (!exists) {
+                    HabitHistory history = new HabitHistory();
+                    history.setHabit(habit);
+                    history.setCreatedAt(cursor);
+                    history.setStatus(HabitStatus.MISSED);
+                    toSave.add(history);
+                }
+            }
+            cursor = cursor.plusDays(1);
+        }
+
+        if (!toSave.isEmpty()) {
+            habitHistoryRepository.saveAll(toSave);
+        }
+    }
+
+    private void createTodayHabitHistory(List<Habit> habits, LocalDate today) {
+
+        List<HabitHistory> toSave = new ArrayList<>();
+
+        for (Habit habit : habits) {
+
+            if (!habit.isActiveOn(today)) continue;
+
+            boolean exists = habitHistoryRepository
+                    .findByHabit_HabitIdAndCreatedAt(habit.getHabitId(), today)
+                    .isPresent();
+
+            if (!exists) {
+                HabitHistory history = new HabitHistory();
+                history.setHabit(habit);
+                history.setCreatedAt(today);
+                history.setStatus(HabitStatus.PENDING);
+                toSave.add(history);
+            }
+        }
+
+        if (!toSave.isEmpty()) {
+            habitHistoryRepository.saveAll(toSave);
+        }
     }
 }
 
