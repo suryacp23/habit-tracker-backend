@@ -37,17 +37,24 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/me").authenticated()
-                        .requestMatchers("/api/*").authenticated()
+                        .requestMatchers("/api/**").authenticated()
+                        .requestMatchers("/logout").permitAll()   // ✅ allow logout
                         .anyRequest().permitAll()
                 )
                 .oauth2Login(oauth -> oauth
                         .successHandler(oAuth2SuccessHandler)
                 )
                 .logout(logout -> logout
-                        .deleteCookies("token")
-                ).addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+                        .logoutUrl("/logout")                     // ✅ define logout
+                        .deleteCookies("token")                   // delete cookie
+                        .logoutSuccessHandler((req, res, auth) -> {
+                            res.setStatus(200);
+                        })
+                )
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
+
 }
 
