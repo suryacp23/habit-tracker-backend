@@ -1,6 +1,6 @@
 services:
   # -------------------------------------------------------
-  #  MySQL Private Service  (correct type = pserv)
+  #  MySQL Private Service
   # -------------------------------------------------------
   - type: pserv
     name: mysql-db
@@ -17,13 +17,10 @@ services:
     envVars:
       - key: MYSQL_DATABASE
         value: habittracker
-
       - key: MYSQL_USER
         value: alcognerd
-
       - key: MYSQL_PASSWORD
         value: ${MYSQL_PASSWORD}
-
       - key: MYSQL_ROOT_PASSWORD
         value: ${MYSQL_ROOT_PASSWORD}
 
@@ -33,17 +30,18 @@ services:
   - type: web
     name: springboot-app
     env: docker
-    repo: https://github.com/YOUR_USERNAME/YOUR_REPOSITORY  # <-- change this
+    repo: https://github.com/YOUR_USERNAME/YOUR_REPOSITORY  # <-- Change this
     dockerfilePath: ./Dockerfile
 
     envVars:
       - key: SPRING_PROFILES_ACTIVE
         value: prod
 
-      # DB HOST automatically provided by Render private service
+      # DB HOST (returned from mysql-db pserv)
       - key: DB_HOST
         fromService:
           name: mysql-db
+          type: pserv
           property: host
 
       - key: DB_NAME
@@ -65,6 +63,6 @@ services:
       - key: GOOGLE_REDIRECT_URI
         value: https://habittracker-x7oc.onrender.com/login/oauth2/code/google
 
-      # Frontend URL
+      # Frontend
       - key: FRONTEND_URL
         value: https://habittracker-algo.netlify.app
