@@ -33,7 +33,7 @@ services:
   - type: web
     name: springboot-app
     env: docker
-    repo: https://github.com/YOUR_USERNAME/YOUR_REPOSITORY   # <-- CHANGE THIS
+    repo: https://github.com/suryacp23/habit-tracker-backend   # <-- CHANGE THIS
     dockerfilePath: ./Dockerfile
 
     envVars:
