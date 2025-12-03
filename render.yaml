@@ -1,0 +1,71 @@
+services:
+  # -------------------------------------------------------
+  #  MySQL Private Service (internal-only)
+  # -------------------------------------------------------
+  - type: private
+    name: mysql-db
+    env: docker
+    dockerCommand: |
+      docker run \
+        -e MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD} \
+        -e MYSQL_DATABASE=habittracker \
+        -e MYSQL_USER=alcognerd \
+        -e MYSQL_PASSWORD=${MYSQL_PASSWORD} \
+        -p 3306 \
+        mysql:8.0
+
+    envVars:
+      - key: MYSQL_DATABASE
+        value: habittracker
+
+      - key: MYSQL_USER
+        value: alcognerd
+
+      - key: MYSQL_PASSWORD
+        value: ${MYSQL_PASSWORD}
+
+      - key: MYSQL_ROOT_PASSWORD
+        value: ${MYSQL_ROOT_PASSWORD}
+
+  # -------------------------------------------------------
+  #  SPRING BOOT APPLICATION (Web Service)
+  # -------------------------------------------------------
+  - type: web
+    name: springboot-app
+    env: docker
+    repo: https://github.com/YOUR_USERNAME/YOUR_REPOSITORY   # <-- CHANGE THIS
+    dockerfilePath: ./Dockerfile
+
+    envVars:
+      # -------- Spring profile ----------
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+
+      # -------- Database connection vars --------
+      - key: DB_HOST
+        fromService:
+          name: mysql-db
+          property: host
+
+      - key: DB_NAME
+        value: habittracker
+
+      - key: DB_USERNAME
+        value: alcognerd
+
+      - key: DB_PASSWORD
+        value: ${DB_PASSWORD}
+
+      # -------- Google OAuth --------
+      - key: GOOGLE_CLIENT_ID
+        value: ${GOOGLE_CLIENT_ID}
+
+      - key: GOOGLE_CLIENT_SECRET
+        value: ${GOOGLE_CLIENT_SECRET}
+
+      - key: GOOGLE_REDIRECT_URI
+        value: https://habittracker-x7oc.onrender.com/login/oauth2/code/google
+
+      # -------- Frontend URL --------
+      - key: FRONTEND_URL
+        value: https://habittracker-algo.netlify.app
